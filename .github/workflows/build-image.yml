@@ -64,7 +64,7 @@ jobs:
         run: packer validate -syntax-only .
 
       - name: Packer Build
-        if: ${{ secrets.HCLOUD_TOKEN != '' }}
+        if: env.HCLOUD_TOKEN != ''
         working-directory: image
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
