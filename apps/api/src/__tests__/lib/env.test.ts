@@ -52,14 +52,11 @@ describe("env", () => {
       );
     });
 
-    it("should reject a missing GITHUB_CLIENT_ID", () => {
-      const { GITHUB_CLIENT_ID: _, ...rest } = VALID_ENV;
-      expect(() => parseEnv(rest)).toThrow("Environment validation failed");
-    });
-
-    it("should reject a missing GOOGLE_CLIENT_ID", () => {
-      const { GOOGLE_CLIENT_ID: _, ...rest } = VALID_ENV;
-      expect(() => parseEnv(rest)).toThrow("Environment validation failed");
+    it("should accept missing OAuth credentials (optional)", () => {
+      const { GITHUB_CLIENT_ID: _1, GITHUB_CLIENT_SECRET: _2, GOOGLE_CLIENT_ID: _3, GOOGLE_CLIENT_SECRET: _4, ...rest } = VALID_ENV;
+      const env = parseEnv(rest);
+      expect(env.GITHUB_CLIENT_ID).toBeUndefined();
+      expect(env.GOOGLE_CLIENT_ID).toBeUndefined();
     });
 
     it("should reject an invalid PASSKEY_ORIGIN (not a URL)", () => {
