@@ -16,7 +16,7 @@ COPY apps/ apps/
 COPY packages/ packages/
 
 # Build the Vite frontend
-RUN bun run --filter 'web' build
+RUN cd apps/web && bun run build
 
 # Compile the Hono API server into a standalone binary
 RUN bun build apps/api/src/index.ts --compile --outfile dist/api
