@@ -4,6 +4,7 @@
     "outDir": "dist",
     "declaration": false,
     "declarationMap": false,
+    "baseUrl": ".",
     "types": ["bun-types"],
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "jsx": "react-jsx",
