@@ -2,7 +2,7 @@
 
 /*
  * Register shadcn/ui CSS variables as Tailwind theme values.
- * TW v4 requires @theme to map CSS custom properties to utility classes.
+ * Uses @theme (without inline) for TW v4.0 compatibility.
  */
 
 @theme inline {
