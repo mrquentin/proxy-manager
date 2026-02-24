@@ -109,8 +109,8 @@ describe("API client fetch wrapper logic", () => {
     });
 
     expect(mockFetch).toHaveBeenCalledTimes(1);
-    const callArgs = mockFetch.mock.calls[0];
+    const callArgs = mockFetch.mock.calls[0]!;
     expect(callArgs[0]).toBe("/api/vps");
-    expect(callArgs[1].method).toBe("POST");
+    expect((callArgs[1] as any).method).toBe("POST");
   });
 });
