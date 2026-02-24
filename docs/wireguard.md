@@ -1,0 +1,319 @@
+# WireGuard
+
+## Overview
+
+WireGuard provides encrypted tunnels between the VPS and user peers. The VPS acts as a hub in a hub-and-spoke topology. Caddy L4 proxies traffic into the WireGuard interface to reach user services.
+
+## Topology
+
+```
+VPS (hub): 10.0.0.1/24, public IP, UDP :51820
+    │
+    ├── Peer A: 10.0.0.2/32 (user's machine)
+    ├── Peer B: 10.0.0.3/32 (user's machine)
+    ├── Peer C: 10.0.0.4/32 (user's machine)
+    └── ... up to 10.0.0.254 (253 peers per /24)
+```
+
+For >253 peers, expand to a /16 subnet or use multiple WireGuard interfaces.
+
+## Key Generation
+
+### VPS Server Keys
+
+Generated at first boot by a systemd oneshot service:
+
+```ini
+[Unit]
+Description=WireGuard Key Generation (first boot only)
+ConditionPathExists=!/etc/wireguard/server_private.key
+Before=wg-quick@wg0.service
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash -c '\
+  install -d -m 700 /etc/wireguard && \
+  wg genkey | tee /etc/wireguard/server_private.key | wg pubkey > /etc/wireguard/server_public.key && \
+  chmod 600 /etc/wireguard/server_private.key'
+RemainAfterExit=yes
+```
+
+- `ConditionPathExists=!` makes it idempotent — only runs if the key doesn't exist
+- Private key never leaves the VPS
+- Public key is read by the control plane API and exposed via `GET /api/v1/server/pubkey`
+
+### User Peer Keys
+
+Two supported flows:
+
+**Flow A: Server-side generation (simpler UX)**
+1. Control plane generates keypair + PSK via `wg genkey` / `wg genpsk`
+2. Full `.conf` + QR code delivered to user via dashboard **one time only**
+3. Private key immediately purged from server memory — never stored in SQLite
+4. SQLite stores only: public key, VPN IP, PSK hash
+
+**Flow B: Client-side generation (better security)**
+1. User generates keypair locally: `wg genkey | tee private.key | wg pubkey > public.key`
+2. User submits **public key only** via dashboard
+3. Control plane allocates VPN IP, generates PSK, adds peer
+4. Private key never touches any server — provably zero-knowledge
+
+The dashboard offers both options: "Generate for me" (default) vs "I have my own keys".
+
+## Server Configuration
+
+`/etc/wireguard/wg0.conf`:
+```ini
+[Interface]
+Address = 10.0.0.1/24
+ListenPort = 51820
+PostUp = wg set %i private-key /etc/wireguard/server_private.key
+PostUp = iptables -A FORWARD -i %i -j ACCEPT; iptables -A FORWARD -o %i -j ACCEPT
+PostUp = iptables -A FORWARD -i %i -o %i -j DROP
+PostUp = iptables -t nat -A POSTROUTING -o eth0 -j MASQUERADE
+PostDown = iptables -D FORWARD -i %i -j ACCEPT; iptables -D FORWARD -o %i -j ACCEPT
+PostDown = iptables -D FORWARD -i %i -o %i -j DROP
+PostDown = iptables -t nat -D POSTROUTING -o eth0 -j MASQUERADE
+```
+
+Key rules:
+- `FORWARD -i wg0 -o wg0 -j DROP` — **peer isolation**: peers cannot reach each other through the VPS
+- `FORWARD -i wg0 -j ACCEPT` / `-o wg0 -j ACCEPT` — traffic flows between WireGuard and the public interface
+- `MASQUERADE` — NAT for outbound traffic from peers
+
+**No [Peer] sections in the config file.** All peers are managed at runtime by the control plane via `wgctrl-go`.
+
+## Peer Management via wgctrl-go
+
+The Go control plane uses the official WireGuard Go library for live peer management. No config file edits, no service restarts.
+
+### Add Peer
+
+```go
+import (
+    "golang.zx2c4.com/wireguard/wgctrl"
+    "golang.zx2c4.com/wireguard/wgctrl/wgtypes"
+    "net"
+    "time"
+)
+
+func (m *Manager) AddPeer(publicKey wgtypes.Key, psk wgtypes.Key, vpnIP string) error {
+    client, err := wgctrl.New()
+    if err != nil {
+        return err
+    }
+    defer client.Close()
+
+    _, allowedNet, _ := net.ParseCIDR(vpnIP + "/32")
+    keepalive := 25 * time.Second
+
+    return client.ConfigureDevice(m.iface, wgtypes.Config{
+        Peers: []wgtypes.PeerConfig{{
+            PublicKey:                   publicKey,
+            PresharedKey:                &psk,
+            AllowedIPs:                  []net.IPNet{*allowedNet},
+            PersistentKeepaliveInterval: &keepalive,
+            ReplaceAllowedIPs:           true,
+        }},
+    })
+}
+```
+
+### Remove Peer
+
+```go
+func (m *Manager) RemovePeer(publicKey wgtypes.Key) error {
+    client, err := wgctrl.New()
+    if err != nil {
+        return err
+    }
+    defer client.Close()
+
+    return client.ConfigureDevice(m.iface, wgtypes.Config{
+        Peers: []wgtypes.PeerConfig{{
+            PublicKey: publicKey,
+            Remove:   true,
+        }},
+    })
+}
+```
+
+### List Peers (for status + reconciliation)
+
+```go
+func (m *Manager) ListPeers() ([]wgtypes.Peer, error) {
+    client, err := wgctrl.New()
+    if err != nil {
+        return nil, err
+    }
+    defer client.Close()
+
+    device, err := client.Device(m.iface)
+    if err != nil {
+        return nil, err
+    }
+    return device.Peers, nil
+}
+```
+
+Each `wgtypes.Peer` includes:
+- `PublicKey` — peer identity
+- `LastHandshakeTime` — last successful handshake (>5 min ago = offline)
+- `ReceiveBytes` / `TransmitBytes` — traffic counters
+- `AllowedIPs` — assigned VPN IP
+
+## Client Configuration Template
+
+Generated by the control plane for Flow A:
+
+```ini
+[Interface]
+PrivateKey = {generated_private_key}
+Address = {vpn_ip}/32
+DNS = 1.1.1.1
+
+[Peer]
+PublicKey = {vps_server_public_key}
+PresharedKey = {generated_psk}
+Endpoint = {vps_public_ip}:51820
+AllowedIPs = 10.0.0.1/32
+PersistentKeepalive = 25
+```
+
+- `AllowedIPs = 10.0.0.1/32` — split tunnel: only VPS-bound traffic goes through WireGuard
+- `PersistentKeepalive = 25` — keeps NAT mappings alive for peers behind NAT
+
+## QR Code Generation
+
+For mobile clients, the control plane generates a QR code PNG from the config text:
+
+```go
+import "github.com/skip2/go-qrcode"
+
+func GenerateQR(config string) ([]byte, error) {
+    return qrcode.Encode(config, qrcode.Medium, 512)
+}
+```
+
+Served via `GET /api/v1/tunnels/{id}/qr` as `image/png`.
+
+## Key Rotation
+
+### Important: Rotation Is Disruptive
+
+WireGuard has **no in-band key renegotiation**. When a PSK or keypair is rotated on the VPS side, the peer's local config becomes stale and the tunnel **drops immediately**. The user must download the new config from the dashboard and re-import it on their device before the tunnel reconnects. This is not like TLS cert renewal — it requires manual user action.
+
+WireGuard's Noise protocol already rotates **session keys** internally every 2 minutes. The long-term keys (Curve25519 keypair + PSK) don't need periodic rotation unless there's a compromise or compliance requirement.
+
+### Rotation Policy (Per-Tunnel, Configurable)
+
+Each tunnel has its own rotation policy, configurable from the dashboard:
+
+```json
+{
+  "rotation_policy": {
+    "auto_rotate_psk": false,
+    "psk_rotation_interval_days": 0,
+    "auto_revoke_inactive": true,
+    "inactive_expiry_days": 90,
+    "grace_period_minutes": 30
+  }
+}
+```
+
+| Setting | Default | Description |
+|---|---|---|
+| `auto_rotate_psk` | `false` | Enable automatic PSK rotation on a schedule. **Off by default** because it causes tunnel downtime until the user re-imports config. |
+| `psk_rotation_interval_days` | `0` (disabled) | Days between automatic PSK rotations. Only applies if `auto_rotate_psk` is `true`. |
+| `auto_revoke_inactive` | `true` | Automatically revoke peers that haven't completed a handshake in `inactive_expiry_days`. |
+| `inactive_expiry_days` | `90` | Days of inactivity before auto-revoke. |
+| `grace_period_minutes` | `30` | After a rotation, keep the old peer config active for this many minutes so the user has time to re-import. After the grace period, the old PSK is revoked. |
+
+### Rotation Triggers
+
+| Trigger | Behavior |
+|---|---|
+| **Manual (user/admin)** | Dashboard "Rotate Keys" button → generates new PSK (or full keypair), new config available for download. Old config remains valid during grace period. |
+| **Scheduled (opt-in)** | If `auto_rotate_psk` is enabled, the control plane rotates the PSK on schedule. Dashboard shows a notification: "New config available — download and re-import to restore tunnel." |
+| **Auto-revoke inactive** | If `auto_revoke_inactive` is enabled, peers with `last_handshake` older than `inactive_expiry_days` are deleted. No new config is generated — the tunnel is simply removed. |
+| **Emergency revoke** | `DELETE /api/v1/tunnels/{id}` — immediate revocation, no grace period. |
+
+### Grace Period Mechanism
+
+When a rotation occurs (manual or scheduled):
+
+1. Control plane generates new PSK (or keypair)
+2. A **new peer entry** is added to WireGuard with the new keys and the same VPN IP
+3. The **old peer entry remains active** for `grace_period_minutes`
+4. Dashboard shows the new config for download with a warning: "Your tunnel will disconnect in {remaining} minutes. Download and import this new config now."
+5. After the grace period expires, the old peer is removed via `wgctrl-go`
+6. If the user imports the new config before the grace period, both old and new work simultaneously during the overlap
+
+### Dashboard UX
+
+The rotation settings are exposed per-tunnel in the dashboard:
+
+- **Rotation Policy section** in tunnel detail view
+- Toggle for "Enable automatic PSK rotation" (off by default)
+- Interval picker (30/60/90/180 days) — only shown when auto-rotate is on
+- Toggle for "Auto-revoke inactive tunnels" (on by default)
+- Inactivity threshold picker (30/60/90/180 days)
+- Grace period picker (15/30/60 minutes)
+- "Rotate Keys Now" button with confirmation dialog: "This will require you to re-import the WireGuard config on your device. The current config will remain valid for {grace_period} minutes."
+
+### SQLite Schema Addition
+
+```sql
+-- Per-tunnel rotation policy
+ALTER TABLE wg_peers ADD COLUMN auto_rotate_psk INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE wg_peers ADD COLUMN psk_rotation_interval_days INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE wg_peers ADD COLUMN auto_revoke_inactive INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE wg_peers ADD COLUMN inactive_expiry_days INTEGER NOT NULL DEFAULT 90;
+ALTER TABLE wg_peers ADD COLUMN grace_period_minutes INTEGER NOT NULL DEFAULT 30;
+ALTER TABLE wg_peers ADD COLUMN last_rotation_at INTEGER;
+ALTER TABLE wg_peers ADD COLUMN pending_rotation_id TEXT;  -- references a new peer during grace period
+```
+
+### API Endpoints
+
+```
+POST   /api/v1/tunnels/{id}/rotate           # Manual rotation, returns new config + QR
+PATCH  /api/v1/tunnels/{id}/rotation-policy   # Update rotation settings
+GET    /api/v1/tunnels/{id}/rotation-policy   # Read current rotation settings
+```
+
+### Control Plane Rotation Check (runs alongside reconciliation)
+
+```
+Every reconciliation tick:
+  for each enabled peer:
+    if auto_rotate_psk AND last_rotation_at + interval < now:
+      trigger rotation (same as manual, but automated)
+      send SSE event: "tunnel:{id}:rotation_pending"
+
+    if auto_revoke_inactive AND last_handshake + expiry < now:
+      delete peer
+      send SSE event: "tunnel:{id}:revoked_inactive"
+
+    if pending_rotation_id AND grace_period expired:
+      remove old peer from WireGuard
+      clear pending_rotation_id
+```
+
+## IP Allocation
+
+The control plane maintains an IP pool backed by SQLite:
+
+1. On tunnel creation: `SELECT MIN(ip) FROM ip_pool WHERE allocated = false`
+2. Mark as allocated in a transaction (row lock prevents double allocation)
+3. On tunnel deletion: mark IP as unallocated (available for reuse)
+
+Pool range: `10.0.0.2` through `10.0.0.254` (10.0.0.1 is the VPS server).
+
+## Security Considerations
+
+- **Private keys:** `chmod 600`, owned by `root:root`, never logged, never in metrics
+- **Peer isolation:** `iptables -A FORWARD -i wg0 -o wg0 -j DROP` prevents lateral movement
+- **AllowedIPs per peer:** Always exactly `{vpn_ip}/32` on the server side — prevents IP spoofing
+- **Pre-shared keys:** Per-peer PSK for post-quantum resistance (symmetric key mixed into handshake)
+- **Key delivery:** One-time only over HTTPS, then purged from server

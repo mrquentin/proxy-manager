@@ -1,0 +1,13 @@
+{
+  "admin": {
+    "listen": "unix//run/caddy/admin.sock|0660",
+    "config": {
+      "persist": false
+    }
+  },
+  "apps": {
+    "layer4": {
+      "servers": {}
+    }
+  }
+}

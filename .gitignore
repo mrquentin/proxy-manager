@@ -1,0 +1,43 @@
+# Dependencies
+node_modules/
+
+# Build output
+dist/
+*.tsbuildinfo
+
+# SQLite databases
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs
+*.log
+logs/
+
+# Data directory (local dev databases)
+data/
+
+# Drizzle migrations meta
+packages/db/migrations/meta/
+
+# Vite
+apps/web/.vite/
+
+# Bun
+bun.lockb

@@ -1,0 +1,30 @@
+{
+  "permissions": {
+    "allow": [
+      "WebSearch",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:caddyserver.com)",
+      "WebFetch(domain:deepwiki.com)",
+      "WebFetch(domain:zhul.in)",
+      "WebFetch(domain:caddy.community)",
+      "WebFetch(domain:openchami.org)",
+      "WebFetch(domain:kalnytskyi.com)",
+      "WebFetch(domain:wg-easy.github.io)",
+      "WebFetch(domain:contabo.com)",
+      "WebFetch(domain:www.procustodibus.com)",
+      "WebFetch(domain:medium.com)",
+      "WebFetch(domain:www.better-auth.com)",
+      "Bash(head:*)",
+      "WebFetch(domain:developer.hashicorp.com)",
+      "WebFetch(domain:gist.github.com)",
+      "WebFetch(domain:oracle-base.com)",
+      "WebFetch(domain:blogs.oracle.com)",
+      "WebFetch(domain:marcinmitruk.link)",
+      "WebFetch(domain:dev.to)",
+      "WebFetch(domain:wiki.drake.org.uk)",
+      "WebFetch(domain:bluemap.bluecolored.de)",
+      "WebFetch(domain:craftedsilicon.com)",
+      "WebFetch(domain:blog.meinside.dev)"
+    ]
+  }
+}

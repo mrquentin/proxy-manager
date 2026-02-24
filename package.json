@@ -1,0 +1,15 @@
+{
+  "name": "proxy-manager",
+  "private": true,
+  "workspaces": ["apps/*", "packages/*"],
+  "scripts": {
+    "dev": "bun run --filter '*' dev",
+    "dev:api": "bun run --filter api dev",
+    "dev:web": "bun run --filter web dev",
+    "build": "bun run --filter '*' build",
+    "typecheck": "bun run --filter '*' typecheck",
+    "test": "bun test",
+    "db:generate": "bun run --cwd packages/db generate",
+    "db:migrate": "bun run --cwd packages/db migrate"
+  }
+}
