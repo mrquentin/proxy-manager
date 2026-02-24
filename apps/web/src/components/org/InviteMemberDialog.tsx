@@ -59,7 +59,7 @@ export function InviteMemberDialog() {
 
     setIsInviting(true);
     try {
-      await organization.inviteMember({ email: email.trim(), role });
+      await organization.inviteMember({ email: email.trim(), role: role as "admin" | "member" | "owner" });
       toast({
         title: "Invitation sent",
         description: `Invitation sent to ${email.trim()}.`,

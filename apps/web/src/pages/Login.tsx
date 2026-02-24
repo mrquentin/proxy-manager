@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Separator } from "@/components/ui/separator";
 import { useToast } from "@/hooks/use-toast";
-import { signIn, passkey } from "@/lib/auth-client";
+import { signIn } from "@/lib/auth-client";
 
 export function Login() {
   const navigate = useNavigate();
@@ -19,7 +19,7 @@ export function Login() {
   const handlePasskeyLogin = async () => {
     setLoadingProvider("passkey");
     try {
-      const result = await passkey.signIn();
+      const result = await signIn.passkey();
       if (result?.error) {
         toast({
           title: "Passkey login failed",

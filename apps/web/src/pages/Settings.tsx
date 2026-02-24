@@ -39,7 +39,7 @@ export function Settings() {
 
     setIsRegisteringPasskey(true);
     try {
-      const result = await passkey.register({ name: passkeyName.trim() });
+      const result = await passkey.addPasskey({ name: passkeyName.trim() });
       if (result?.error) {
         toast({
           title: "Passkey registration failed",

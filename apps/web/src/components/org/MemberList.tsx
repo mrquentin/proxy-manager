@@ -75,7 +75,7 @@ export function MemberList() {
         </TableRow>
       </TableHeader>
       <TableBody>
-        {members.map((member: { id: string; userId: string; role: Role; createdAt: string }) => (
+        {members.map((member) => (
           <TableRow key={member.id}>
             <TableCell className="font-mono text-xs">
               {member.userId}

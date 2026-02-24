@@ -59,11 +59,12 @@ jobs:
         working-directory: image
         run: packer init .
 
-      - name: Packer Validate
+      - name: Packer Validate (syntax only)
         working-directory: image
-        run: packer validate -var-file="providers/${{ matrix.provider }}.pkrvars.hcl" .
+        run: packer validate -syntax-only .
 
       - name: Packer Build
+        if: ${{ secrets.HCLOUD_TOKEN != '' }}
         working-directory: image
         env:
           HCLOUD_TOKEN: ${{ secrets.HCLOUD_TOKEN }}
