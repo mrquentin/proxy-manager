@@ -35,7 +35,7 @@ describe("Tunnel routes", () => {
         body: JSON.stringify({ domains: ["app.example.com"], upstreamPort: 443 }),
       });
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data.id).toBe("tun-1");
       expect(vpsClient.createTunnel).toHaveBeenCalled();
       expect(auditLog.calls).toHaveLength(1);
@@ -72,7 +72,7 @@ describe("Tunnel routes", () => {
       });
       const res = await app.request("/api/vps/vps-1/tunnels");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data).toEqual(tunnels);
     });
 
@@ -103,7 +103,7 @@ describe("Tunnel routes", () => {
       });
       const res = await app.request("/api/vps/vps-1/tunnels/tun-1/config");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data.configText).toContain("[Interface]");
     });
   });
@@ -139,7 +139,7 @@ describe("Tunnel routes", () => {
       });
       const res = await app.request("/api/vps/vps-1/tunnels/tun-1/rotation-policy");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data).toEqual(policy);
       expect(vpsClient.getRotationPolicy).toHaveBeenCalled();
     });

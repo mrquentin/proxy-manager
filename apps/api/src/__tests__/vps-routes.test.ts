@@ -31,7 +31,7 @@ describe("VPS routes", () => {
       const { app } = createApp();
       const res = await app.request("/api/vps");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data).toBeInstanceOf(Array);
       expect(body.data).toHaveLength(1);
       expect(body.data[0].id).toBe("vps-1");
@@ -72,7 +72,7 @@ describe("VPS routes", () => {
       const { app } = createApp();
       const res = await app.request("/api/vps/vps-1");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data.id).toBe("vps-1");
       expect(body.data.name).toBe("Test VPS");
     });
@@ -99,7 +99,7 @@ describe("VPS routes", () => {
         }),
       });
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data.name).toBe("Test VPS"); // From mock DB select
       expect(auditLog.calls).toHaveLength(1);
       expect(auditLog.calls[0]![2]).toBe("vps.create");
@@ -121,7 +121,7 @@ describe("VPS routes", () => {
       const { app, deletedIds, auditLog } = createApp();
       const res = await app.request("/api/vps/vps-1", { method: "DELETE" });
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data.deleted).toBe(true);
       expect(deletedIds).toHaveLength(1);
       expect(auditLog.calls).toHaveLength(1);
@@ -143,7 +143,7 @@ describe("VPS routes", () => {
       });
       const res = await app.request("/api/vps/vps-1/status");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data).toEqual(statusReport);
       expect(vpsClient.getStatus).toHaveBeenCalled();
     });
@@ -160,7 +160,7 @@ describe("VPS routes", () => {
       });
       const res = await app.request("/api/vps/vps-1/status");
       expect(res.status).toBe(502);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.error).toContain("Connection refused");
     });
   });
@@ -189,7 +189,7 @@ describe("VPS routes", () => {
       });
       const res = await app.request("/api/vps/vps-1/reconcile", { method: "POST" });
       expect(res.status).toBe(502);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.error).toContain("Timeout");
     });
   });

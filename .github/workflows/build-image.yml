@@ -47,8 +47,8 @@ jobs:
           name: controlplane-binary
           path: image/files/
 
-      - name: Make binary executable
-        run: chmod +x image/files/controlplane
+      - name: Make binaries executable
+        run: chmod +x image/files/controlplane-*
 
       - name: Setup Packer
         uses: hashicorp/setup-packer@main

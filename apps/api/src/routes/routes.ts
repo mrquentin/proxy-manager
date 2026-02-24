@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Auth } from "../lib/auth";
 import type { Env } from "../lib/env";
+import type { AppEnv } from "../lib/hono-env";
 import type { VpsClient } from "../lib/vps-client";
 import { getVps } from "../lib/vps-helpers";
 import { createRequireAuth, createRequirePermission, requireActiveOrg } from "../middleware/auth";
@@ -21,7 +22,7 @@ interface RouteRouteDeps {
  * These routes proxy requests to the VPS control plane route API.
  */
 export function createRouteRoutes({ db, auth, env, vpsClient, auditLog }: RouteRouteDeps) {
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
   const requireAuth = createRequireAuth(auth);
 
   // All route routes require authentication and an active org
@@ -35,11 +36,11 @@ export function createRouteRoutes({ db, auth, env, vpsClient, auditLog }: RouteR
     "/api/vps/:vpsId/routes",
     createRequirePermission(auth, "route", "create"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
-      const user = c.get("user") as { id: string };
+      const session = c.get("session");
+      const user = c.get("user");
       const vpsId = c.req.param("vpsId");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -48,7 +49,7 @@ export function createRouteRoutes({ db, auth, env, vpsClient, auditLog }: RouteR
       const result = await vpsClient.createRoute(vps, body);
 
       await auditLog.logAction(
-        session.activeOrganizationId,
+        session.activeOrganizationId!,
         user.id,
         "route.create",
         "route",
@@ -67,10 +68,10 @@ export function createRouteRoutes({ db, auth, env, vpsClient, auditLog }: RouteR
     "/api/vps/:vpsId/routes",
     createRequirePermission(auth, "route", "read"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
+      const session = c.get("session");
       const vpsId = c.req.param("vpsId");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -87,12 +88,12 @@ export function createRouteRoutes({ db, auth, env, vpsClient, auditLog }: RouteR
     "/api/vps/:vpsId/routes/:id",
     createRequirePermission(auth, "route", "delete"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
-      const user = c.get("user") as { id: string };
+      const session = c.get("session");
+      const user = c.get("user");
       const vpsId = c.req.param("vpsId");
       const routeId = c.req.param("id");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -100,7 +101,7 @@ export function createRouteRoutes({ db, auth, env, vpsClient, auditLog }: RouteR
       const result = await vpsClient.deleteRoute(vps, routeId);
 
       await auditLog.logAction(
-        session.activeOrganizationId,
+        session.activeOrganizationId!,
         user.id,
         "route.delete",
         "route",

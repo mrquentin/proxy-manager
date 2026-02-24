@@ -92,7 +92,7 @@ describe("VpsPoller", () => {
     } as unknown as VpsClient;
 
     const events: SseEvent[] = [];
-    sseManager.subscribe("test:1", "org-1", (e) => events.push(e));
+    sseManager.subscribe("test:1", "org-1", (e) => { events.push(e); });
 
     const poller = new VpsPoller(mockDb.db, mockVpsClient, sseManager, 60_000);
     await poller.poll();
@@ -114,7 +114,7 @@ describe("VpsPoller", () => {
     } as unknown as VpsClient;
 
     const events: SseEvent[] = [];
-    sseManager.subscribe("test:1", "org-1", (e) => events.push(e));
+    sseManager.subscribe("test:1", "org-1", (e) => { events.push(e); });
 
     const poller = new VpsPoller(mockDb.db, mockVpsClient, sseManager, 60_000);
     await poller.poll();
@@ -135,7 +135,7 @@ describe("VpsPoller", () => {
     } as unknown as VpsClient;
 
     const events: SseEvent[] = [];
-    sseManager.subscribe("test:1", "org-1", (e) => events.push(e));
+    sseManager.subscribe("test:1", "org-1", (e) => { events.push(e); });
 
     const poller = new VpsPoller(mockDb.db, mockVpsClient, sseManager, 60_000);
     await poller.poll();

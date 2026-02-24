@@ -34,7 +34,7 @@ describe("middleware/rate-limit", () => {
       headers: { "x-forwarded-for": "1.2.3.4" },
     });
     expect(res.status).toBe(429);
-    const body = await res.json();
+    const body = await res.json() as any;
     expect(body.error).toBe("Too many requests");
   });
 

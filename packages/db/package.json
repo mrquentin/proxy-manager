@@ -19,6 +19,7 @@
     "better-auth": "1.4.19"
   },
   "devDependencies": {
+    "bun-types": "1.2.4",
     "drizzle-kit": "0.30.4",
     "typescript": "5.7.3"
   }

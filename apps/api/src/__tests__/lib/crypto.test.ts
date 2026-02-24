@@ -59,7 +59,8 @@ oWQDYgAE2X5g9j8u0EcEDKqPVL9nXJIYgeCwGxJBB0zRWf/oGPK7hnVxmN3X1K7Q
 
       // Tamper with the base64 content by changing characters in the middle
       const bytes = Uint8Array.from(atob(ciphertext), (c) => c.charCodeAt(0));
-      bytes[bytes.length - 5] ^= 0xff; // flip some bits
+      const idx = bytes.length - 5;
+      bytes[idx] = (bytes[idx] ?? 0) ^ 0xff; // flip some bits
       const tampered = btoa(String.fromCharCode(...bytes));
 
       await expect(decrypt(tampered, TEST_KEY)).rejects.toThrow();

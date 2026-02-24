@@ -40,7 +40,7 @@ describe("Route routes (L4)", () => {
         }),
       });
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data.id).toBe("route-1");
       expect(vpsClient.createRoute).toHaveBeenCalled();
       expect(auditLog.calls).toHaveLength(1);
@@ -93,7 +93,7 @@ describe("Route routes (L4)", () => {
       });
       const res = await app.request("/api/vps/vps-1/routes");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data).toEqual(routes);
     });
 

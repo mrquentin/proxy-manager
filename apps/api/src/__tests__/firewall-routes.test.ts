@@ -35,7 +35,7 @@ describe("Firewall routes", () => {
         body: JSON.stringify({ port: 8080, proto: "tcp", source_cidr: "0.0.0.0/0", action: "allow" }),
       });
       expect(res.status).toBe(201);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data.id).toBe("fw-1");
       expect(vpsClient.createFirewallRule).toHaveBeenCalled();
       expect(auditLog.calls).toHaveLength(1);
@@ -88,7 +88,7 @@ describe("Firewall routes", () => {
       });
       const res = await app.request("/api/vps/vps-1/firewall/rules");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.data).toEqual(rules);
     });
 

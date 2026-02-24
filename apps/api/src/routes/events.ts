@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import { streamSSE } from "hono/streaming";
 import type { Auth } from "../lib/auth";
+import type { AppEnv } from "../lib/hono-env";
 import { createRequireAuth } from "../middleware/auth";
 import type { SSEManager } from "../services/sse-manager";
 import type { SseEvent } from "@proxy-manager/shared";
@@ -21,12 +22,12 @@ interface EventRouteDeps {
  * - Keep-alive pings every 25 seconds
  */
 export function createEventRoutes({ auth, sseManager }: EventRouteDeps) {
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
   const requireAuth = createRequireAuth(auth);
 
   app.get("/api/events", requireAuth, (c) => {
-    const user = c.get("user") as { id: string };
-    const session = c.get("session") as { activeOrganizationId: string | null };
+    const user = c.get("user");
+    const session = c.get("session");
 
     return streamSSE(c, async (stream) => {
       // Generate a unique subscriber ID for this connection

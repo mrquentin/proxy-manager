@@ -24,10 +24,15 @@ source "hcloud" "debian12" {
 build {
   sources = ["source.hcloud.debian12"]
 
-  # Upload pre-built control plane binary
+  # Upload pre-built control plane binaries (arch-specific)
   provisioner "file" {
-    source      = "files/controlplane"
-    destination = "/tmp/controlplane"
+    source      = "files/controlplane-amd64"
+    destination = "/tmp/controlplane-amd64"
+  }
+
+  provisioner "file" {
+    source      = "files/controlplane-arm64"
+    destination = "/tmp/controlplane-arm64"
   }
 
   # Upload config files

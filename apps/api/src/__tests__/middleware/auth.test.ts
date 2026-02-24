@@ -2,6 +2,7 @@ import { describe, it, expect, mock } from "bun:test";
 import { Hono } from "hono";
 import { createRequireAuth, createRequirePermission, requireActiveOrg } from "../../middleware/auth";
 import type { Auth } from "../../lib/auth";
+import type { AppEnv } from "../../lib/hono-env";
 
 /**
  * Create a mock auth instance for testing.
@@ -29,16 +30,16 @@ describe("middleware/auth", () => {
   describe("requireAuth", () => {
     it("should pass through when session is valid", async () => {
       const auth = createMockAuth();
-      const app = new Hono();
+      const app = new Hono<AppEnv>();
       app.use("*", createRequireAuth(auth));
       app.get("/test", (c) => {
-        const user = c.get("user") as { id: string };
+        const user = c.get("user");
         return c.json({ userId: user.id });
       });
 
       const res = await app.request("/test");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.userId).toBe("user-1");
     });
 
@@ -52,17 +53,17 @@ describe("middleware/auth", () => {
 
       const res = await app.request("/test");
       expect(res.status).toBe(401);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.error).toBe("Unauthorized");
     });
 
     it("should set user and session on context", async () => {
       const auth = createMockAuth();
-      const app = new Hono();
+      const app = new Hono<AppEnv>();
       app.use("*", createRequireAuth(auth));
       app.get("/test", (c) => {
-        const user = c.get("user") as { id: string; email: string };
-        const session = c.get("session") as { activeOrganizationId: string };
+        const user = c.get("user");
+        const session = c.get("session");
         return c.json({
           userId: user.id,
           email: user.email,
@@ -72,7 +73,7 @@ describe("middleware/auth", () => {
 
       const res = await app.request("/test");
       expect(res.status).toBe(200);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.userId).toBe("user-1");
       expect(body.email).toBe("test@example.com");
       expect(body.orgId).toBe("org-1");
@@ -104,7 +105,7 @@ describe("middleware/auth", () => {
 
       const res = await app.request("/test");
       expect(res.status).toBe(403);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.error).toBe("Forbidden");
     });
 
@@ -149,7 +150,7 @@ describe("middleware/auth", () => {
 
       const res = await app.request("/test");
       expect(res.status).toBe(400);
-      const body = await res.json();
+      const body = await res.json() as any;
       expect(body.error).toBe("No active organization selected");
     });
   });

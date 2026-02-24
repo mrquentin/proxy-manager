@@ -354,7 +354,7 @@ func TestReconcileCaddyError(t *testing.T) {
 }
 
 func TestReconcileWireGuardError(t *testing.T) {
-	rec, _, _, mockWG, _ := setupReconciler(t)
+	rec, _, _, _, _ := setupReconciler(t)
 
 	// Make GetDevice fail by replacing the client
 	mockWG2 := newMockWGClient()

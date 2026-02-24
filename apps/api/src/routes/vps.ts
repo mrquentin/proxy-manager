@@ -5,6 +5,7 @@ import { vpsInstances } from "@proxy-manager/db";
 import { encrypt } from "../lib/crypto";
 import type { Auth } from "../lib/auth";
 import type { Env } from "../lib/env";
+import type { AppEnv } from "../lib/hono-env";
 import type { VpsClient } from "../lib/vps-client";
 import { createRequireAuth, createRequirePermission, requireActiveOrg } from "../middleware/auth";
 import type { AuditLogService } from "../services/audit-log";
@@ -33,7 +34,7 @@ interface VpsRouteDeps {
  * All operations are scoped to the user's active organization.
  */
 export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRouteDeps) {
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
   const requireAuth = createRequireAuth(auth);
 
   // All VPS routes require authentication and an active org
@@ -45,8 +46,8 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
    * Encrypts the client key before storing in the database.
    */
   app.post("/api/vps", createRequirePermission(auth, "vps", "create"), async (c) => {
-    const session = c.get("session") as { activeOrganizationId: string };
-    const user = c.get("user") as { id: string };
+    const session = c.get("session");
+    const user = c.get("user");
     const raw = await c.req.json();
     const parsed = createVpsSchema.safeParse(raw);
 
@@ -65,7 +66,7 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
 
     await db.insert(vpsInstances).values({
       id,
-      organizationId: session.activeOrganizationId,
+      organizationId: session.activeOrganizationId!,
       name,
       apiUrl,
       encryptedClientKey,
@@ -76,7 +77,7 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
     });
 
     await auditLog.logAction(
-      session.activeOrganizationId,
+      session.activeOrganizationId!,
       user.id,
       "vps.create",
       "vps",
@@ -117,12 +118,12 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
    * GET /api/vps — List all VPS instances for the active organization.
    */
   app.get("/api/vps", createRequirePermission(auth, "vps", "read"), async (c) => {
-    const session = c.get("session") as { activeOrganizationId: string };
+    const session = c.get("session");
 
     const instances = await db
       .select()
       .from(vpsInstances)
-      .where(eq(vpsInstances.organizationId, session.activeOrganizationId));
+      .where(eq(vpsInstances.organizationId, session.activeOrganizationId!));
 
     return c.json({
       data: instances.map((v) => ({
@@ -144,14 +145,14 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
    * GET /api/vps/:id — Get a single VPS instance by ID.
    */
   app.get("/api/vps/:id", createRequirePermission(auth, "vps", "read"), async (c) => {
-    const session = c.get("session") as { activeOrganizationId: string };
+    const session = c.get("session");
     const id = c.req.param("id");
 
     const [vps] = await db
       .select()
       .from(vpsInstances)
       .where(
-        and(eq(vpsInstances.id, id), eq(vpsInstances.organizationId, session.activeOrganizationId))
+        and(eq(vpsInstances.id, id), eq(vpsInstances.organizationId, session.activeOrganizationId!))
       );
 
     if (!vps) {
@@ -178,15 +179,15 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
    * DELETE /api/vps/:id — Remove a VPS instance.
    */
   app.delete("/api/vps/:id", createRequirePermission(auth, "vps", "delete"), async (c) => {
-    const session = c.get("session") as { activeOrganizationId: string };
-    const user = c.get("user") as { id: string };
+    const session = c.get("session");
+    const user = c.get("user");
     const id = c.req.param("id");
 
     const [vps] = await db
       .select()
       .from(vpsInstances)
       .where(
-        and(eq(vpsInstances.id, id), eq(vpsInstances.organizationId, session.activeOrganizationId))
+        and(eq(vpsInstances.id, id), eq(vpsInstances.organizationId, session.activeOrganizationId!))
       );
 
     if (!vps) {
@@ -196,7 +197,7 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
     await db.delete(vpsInstances).where(eq(vpsInstances.id, id));
 
     await auditLog.logAction(
-      session.activeOrganizationId,
+      session.activeOrganizationId!,
       user.id,
       "vps.delete",
       "vps",
@@ -211,14 +212,14 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
    * GET /api/vps/:id/status — Get VPS status report by proxying to the VPS control plane.
    */
   app.get("/api/vps/:id/status", createRequirePermission(auth, "vps", "read"), async (c) => {
-    const session = c.get("session") as { activeOrganizationId: string };
+    const session = c.get("session");
     const id = c.req.param("id");
 
     const [vps] = await db
       .select()
       .from(vpsInstances)
       .where(
-        and(eq(vpsInstances.id, id), eq(vpsInstances.organizationId, session.activeOrganizationId))
+        and(eq(vpsInstances.id, id), eq(vpsInstances.organizationId, session.activeOrganizationId!))
       );
 
     if (!vps) {
@@ -242,15 +243,15 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
    * POST /api/vps/:id/reconcile — Trigger immediate reconciliation on the VPS.
    */
   app.post("/api/vps/:id/reconcile", createRequirePermission(auth, "vps", "update"), async (c) => {
-    const session = c.get("session") as { activeOrganizationId: string };
-    const user = c.get("user") as { id: string };
+    const session = c.get("session");
+    const user = c.get("user");
     const id = c.req.param("id");
 
     const [vps] = await db
       .select()
       .from(vpsInstances)
       .where(
-        and(eq(vpsInstances.id, id), eq(vpsInstances.organizationId, session.activeOrganizationId))
+        and(eq(vpsInstances.id, id), eq(vpsInstances.organizationId, session.activeOrganizationId!))
       );
 
     if (!vps) {
@@ -265,7 +266,7 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
       const result = await vpsClient.reconcile(vps);
 
       await auditLog.logAction(
-        session.activeOrganizationId,
+        session.activeOrganizationId!,
         user.id,
         "vps.reconcile",
         "vps",

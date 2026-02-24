@@ -1,9 +1,10 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
-    "rootDir": "src",
     "outDir": "dist",
     "types": ["bun-types"],
+    "declaration": false,
+    "declarationMap": false,
     "paths": {
       "@proxy-manager/shared": ["../../packages/shared/src/index.ts"],
       "@proxy-manager/shared/*": ["../../packages/shared/src/*"],

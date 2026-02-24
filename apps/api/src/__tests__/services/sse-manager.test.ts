@@ -45,8 +45,8 @@ describe("SSEManager", () => {
   describe("broadcast", () => {
     it("should broadcast to all subscribers", () => {
       const received: SseEvent[] = [];
-      manager.subscribe("user1:conn1", "org1", (e) => received.push(e));
-      manager.subscribe("user2:conn1", "org2", (e) => received.push(e));
+      manager.subscribe("user1:conn1", "org1", (e) => { received.push(e); });
+      manager.subscribe("user2:conn1", "org2", (e) => { received.push(e); });
 
       const event: VpsStatusEvent = { type: "vps:status", vpsId: "vps1", status: "online" };
       manager.broadcast(event);
@@ -73,9 +73,9 @@ describe("SSEManager", () => {
       const org1Received: SseEvent[] = [];
       const org2Received: SseEvent[] = [];
 
-      manager.subscribe("user1:conn1", "org1", (e) => org1Received.push(e));
-      manager.subscribe("user2:conn1", "org2", (e) => org2Received.push(e));
-      manager.subscribe("user3:conn1", "org1", (e) => org1Received.push(e));
+      manager.subscribe("user1:conn1", "org1", (e) => { org1Received.push(e); });
+      manager.subscribe("user2:conn1", "org2", (e) => { org2Received.push(e); });
+      manager.subscribe("user3:conn1", "org1", (e) => { org1Received.push(e); });
 
       const event: VpsStatusEvent = { type: "vps:status", vpsId: "vps1", status: "offline" };
       manager.broadcastToOrg("org1", event);
@@ -86,7 +86,7 @@ describe("SSEManager", () => {
 
     it("should not broadcast to subscribers with null orgId", () => {
       const received: SseEvent[] = [];
-      manager.subscribe("user1:conn1", null, (e) => received.push(e));
+      manager.subscribe("user1:conn1", null, (e) => { received.push(e); });
 
       const event: VpsStatusEvent = { type: "vps:status", vpsId: "vps1", status: "online" };
       manager.broadcastToOrg("org1", event);

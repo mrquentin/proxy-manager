@@ -1,6 +1,7 @@
 import { Hono } from "hono";
 import type { Auth } from "../lib/auth";
 import type { Env } from "../lib/env";
+import type { AppEnv } from "../lib/hono-env";
 import type { VpsClient } from "../lib/vps-client";
 import { getVps } from "../lib/vps-helpers";
 import { createRequireAuth, createRequirePermission, requireActiveOrg } from "../middleware/auth";
@@ -21,7 +22,7 @@ interface TunnelRouteDeps {
  * These routes proxy requests to the VPS control plane tunnel API.
  */
 export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: TunnelRouteDeps) {
-  const app = new Hono();
+  const app = new Hono<AppEnv>();
   const requireAuth = createRequireAuth(auth);
 
   // All tunnel routes require authentication and an active org
@@ -35,11 +36,11 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
     "/api/vps/:vpsId/tunnels",
     createRequirePermission(auth, "tunnel", "create"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
-      const user = c.get("user") as { id: string };
+      const session = c.get("session");
+      const user = c.get("user");
       const vpsId = c.req.param("vpsId");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -48,7 +49,7 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
       const result = await vpsClient.createTunnel(vps, body);
 
       await auditLog.logAction(
-        session.activeOrganizationId,
+        session.activeOrganizationId!,
         user.id,
         "tunnel.create",
         "tunnel",
@@ -67,10 +68,10 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
     "/api/vps/:vpsId/tunnels",
     createRequirePermission(auth, "tunnel", "read"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
+      const session = c.get("session");
       const vpsId = c.req.param("vpsId");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -87,12 +88,12 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
     "/api/vps/:vpsId/tunnels/:id",
     createRequirePermission(auth, "tunnel", "delete"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
-      const user = c.get("user") as { id: string };
+      const session = c.get("session");
+      const user = c.get("user");
       const vpsId = c.req.param("vpsId");
       const tunnelId = c.req.param("id");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -100,7 +101,7 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
       const result = await vpsClient.deleteTunnel(vps, tunnelId);
 
       await auditLog.logAction(
-        session.activeOrganizationId,
+        session.activeOrganizationId!,
         user.id,
         "tunnel.delete",
         "tunnel",
@@ -119,11 +120,11 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
     "/api/vps/:vpsId/tunnels/:id/config",
     createRequirePermission(auth, "tunnel", "read"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
+      const session = c.get("session");
       const vpsId = c.req.param("vpsId");
       const tunnelId = c.req.param("id");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -149,11 +150,11 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
     "/api/vps/:vpsId/tunnels/:id/qr",
     createRequirePermission(auth, "tunnel", "read"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
+      const session = c.get("session");
       const vpsId = c.req.param("vpsId");
       const tunnelId = c.req.param("id");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -179,12 +180,12 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
     "/api/vps/:vpsId/tunnels/:id/rotate",
     createRequirePermission(auth, "tunnel", "rotate"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
-      const user = c.get("user") as { id: string };
+      const session = c.get("session");
+      const user = c.get("user");
       const vpsId = c.req.param("vpsId");
       const tunnelId = c.req.param("id");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -192,7 +193,7 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
       const result = await vpsClient.rotateTunnel(vps, tunnelId);
 
       await auditLog.logAction(
-        session.activeOrganizationId,
+        session.activeOrganizationId!,
         user.id,
         "tunnel.rotate",
         "tunnel",
@@ -211,11 +212,11 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
     "/api/vps/:vpsId/tunnels/:id/rotation-policy",
     createRequirePermission(auth, "tunnel", "read"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
+      const session = c.get("session");
       const vpsId = c.req.param("vpsId");
       const tunnelId = c.req.param("id");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -232,12 +233,12 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
     "/api/vps/:vpsId/tunnels/:id/rotation-policy",
     createRequirePermission(auth, "tunnel", "rotate"),
     async (c) => {
-      const session = c.get("session") as { activeOrganizationId: string };
-      const user = c.get("user") as { id: string };
+      const session = c.get("session");
+      const user = c.get("user");
       const vpsId = c.req.param("vpsId");
       const tunnelId = c.req.param("id");
 
-      const vps = await getVps(db, vpsId, session.activeOrganizationId);
+      const vps = await getVps(db, vpsId, session.activeOrganizationId!);
       if (!vps) {
         return c.json({ error: "VPS instance not found" }, 404);
       }
@@ -246,7 +247,7 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
       const result = await vpsClient.updateRotationPolicy(vps, tunnelId, body);
 
       await auditLog.logAction(
-        session.activeOrganizationId,
+        session.activeOrganizationId!,
         user.id,
         "tunnel.update-rotation-policy",
         "tunnel",

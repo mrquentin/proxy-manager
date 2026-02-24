@@ -18,7 +18,7 @@ async function importKey(hexKey: string): Promise<CryptoKey> {
   if (keyBytes.byteLength !== 32) {
     throw new Error(`Encryption key must be 32 bytes, got ${keyBytes.byteLength}`);
   }
-  return crypto.subtle.importKey("raw", keyBytes, { name: ALGORITHM, length: KEY_LENGTH }, false, [
+  return crypto.subtle.importKey("raw", keyBytes as unknown as ArrayBuffer, { name: ALGORITHM, length: KEY_LENGTH }, false, [
     "encrypt",
     "decrypt",
   ]);
