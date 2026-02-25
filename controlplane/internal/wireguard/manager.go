@@ -7,6 +7,7 @@ import (
 	"net"
 	"time"
 
+	"golang.zx2c4.com/wireguard/wgctrl"
 	"golang.zx2c4.com/wireguard/wgctrl/wgtypes"
 )
 
@@ -136,11 +137,7 @@ func (c *RealWGClient) AddPeer(iface string, pubkey, psk, vpnIP string) error {
 	}
 	keepalive := 25 * time.Second
 
-	// Note: in production, this would use wgctrl.New() and ConfigureDevice.
-	// The actual wgctrl calls require CAP_NET_ADMIN and a real kernel WireGuard interface.
-	// Since we use the WGClient interface, the real implementation is here,
-	// but tests use mocks.
-	_ = wgtypes.Config{
+	config := wgtypes.Config{
 		Peers: []wgtypes.PeerConfig{{
 			PublicKey:                   pubKeyArr,
 			PresharedKey:                &pskArr,
@@ -150,11 +147,12 @@ func (c *RealWGClient) AddPeer(iface string, pubkey, psk, vpnIP string) error {
 		}},
 	}
 
-	// In a real deployment, this would call:
-	// client, err := wgctrl.New()
-	// defer client.Close()
-	// return client.ConfigureDevice(iface, config)
-	return fmt.Errorf("RealWGClient.AddPeer: not available outside Linux with CAP_NET_ADMIN")
+	client, err := wgctrl.New()
+	if err != nil {
+		return fmt.Errorf("wgctrl.New: %w", err)
+	}
+	defer client.Close()
+	return client.ConfigureDevice(iface, config)
 }
 
 // RemovePeer removes a peer from the WireGuard interface via wgctrl.
@@ -166,17 +164,57 @@ func (c *RealWGClient) RemovePeer(iface string, pubkey string) error {
 	var pubKeyArr wgtypes.Key
 	copy(pubKeyArr[:], pubKeyBytes)
 
-	_ = wgtypes.Config{
+	config := wgtypes.Config{
 		Peers: []wgtypes.PeerConfig{{
 			PublicKey: pubKeyArr,
 			Remove:   true,
 		}},
 	}
 
-	return fmt.Errorf("RealWGClient.RemovePeer: not available outside Linux with CAP_NET_ADMIN")
+	client, err := wgctrl.New()
+	if err != nil {
+		return fmt.Errorf("wgctrl.New: %w", err)
+	}
+	defer client.Close()
+	return client.ConfigureDevice(iface, config)
 }
 
 // GetDevice returns the WireGuard device info.
 func (c *RealWGClient) GetDevice(iface string) (*DeviceInfo, error) {
-	return nil, fmt.Errorf("RealWGClient.GetDevice: not available outside Linux with CAP_NET_ADMIN")
+	client, err := wgctrl.New()
+	if err != nil {
+		return nil, fmt.Errorf("wgctrl.New: %w", err)
+	}
+	defer client.Close()
+
+	dev, err := client.Device(iface)
+	if err != nil {
+		return nil, fmt.Errorf("get device %s: %w", iface, err)
+	}
+
+	info := &DeviceInfo{
+		PublicKey:  base64.StdEncoding.EncodeToString(dev.PublicKey[:]),
+		ListenPort: dev.ListenPort,
+	}
+
+	for _, p := range dev.Peers {
+		var allowedIPs []string
+		for _, ip := range p.AllowedIPs {
+			allowedIPs = append(allowedIPs, ip.String())
+		}
+		var endpoint string
+		if p.Endpoint != nil {
+			endpoint = p.Endpoint.String()
+		}
+		info.Peers = append(info.Peers, PeerInfo{
+			PublicKey:         base64.StdEncoding.EncodeToString(p.PublicKey[:]),
+			Endpoint:          endpoint,
+			AllowedIPs:        allowedIPs,
+			LastHandshakeTime: p.LastHandshakeTime,
+			ReceiveBytes:      p.ReceiveBytes,
+			TransmitBytes:     p.TransmitBytes,
+		})
+	}
+
+	return info, nil
 }

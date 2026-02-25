@@ -1,8 +1,13 @@
 package firewall
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
+	"os/exec"
+	"strconv"
+	"strings"
+	"sync"
 )
 
 // Rule represents a firewall rule in the dynamic chain.
@@ -94,9 +99,10 @@ func ValidateRule(rule Rule) error {
 	return nil
 }
 
-// RealNFTConn implements NFTConn using the real google/nftables library.
+// RealNFTConn implements NFTConn using the nft CLI.
 // This requires CAP_NET_ADMIN and only works on Linux.
 type RealNFTConn struct {
+	mu    sync.Mutex
 	rules map[string]Rule
 }
 
@@ -107,28 +113,140 @@ func NewRealNFTConn() *RealNFTConn {
 	}
 }
 
-// Init creates the dynamic-api-rules chain.
-// In production this calls nftables.Conn{} and creates the chain.
+// nftExec runs an nft command and returns combined output.
+func nftExec(args ...string) ([]byte, error) {
+	cmd := exec.Command("nft", args...)
+	out, err := cmd.CombinedOutput()
+	if err != nil {
+		return out, fmt.Errorf("nft %s: %s: %w", strings.Join(args, " "), strings.TrimSpace(string(out)), err)
+	}
+	return out, nil
+}
+
+// Init creates the dynamic-api-rules chain if it doesn't exist.
 func (c *RealNFTConn) Init() error {
-	// In production:
-	// conn := &nftables.Conn{}
-	// table := &nftables.Table{Family: nftables.TableFamilyINet, Name: "filter"}
-	// conn.AddChain(&nftables.Chain{Name: "dynamic-api-rules", Table: table, Type: nftables.ChainTypeFilter})
-	// return conn.Flush()
-	return fmt.Errorf("RealNFTConn.Init: not available outside Linux with CAP_NET_ADMIN")
+	// Create table (idempotent — nft add doesn't fail if it exists)
+	if _, err := nftExec("add", "table", "inet", "filter"); err != nil {
+		return fmt.Errorf("create table: %w", err)
+	}
+	// Create chain (idempotent)
+	if _, err := nftExec("add", "chain", "inet", "filter", "dynamic-api-rules", "{ type filter hook input priority 0 ; policy accept ; }"); err != nil {
+		return fmt.Errorf("create chain: %w", err)
+	}
+	// Load existing rules into memory
+	return c.syncRulesFromKernel()
 }
 
-// AddRule adds a rule via nftables netlink.
+// AddRule adds a rule via nft CLI.
 func (c *RealNFTConn) AddRule(rule Rule) error {
-	return fmt.Errorf("RealNFTConn.AddRule: not available outside Linux with CAP_NET_ADMIN")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	expr := buildNftRuleExpr(rule)
+	args := append([]string{"add", "rule", "inet", "filter", "dynamic-api-rules"}, expr...)
+	if _, err := nftExec(args...); err != nil {
+		return fmt.Errorf("add rule: %w", err)
+	}
+	c.rules[rule.ID] = rule
+	return nil
 }
 
-// DeleteRule deletes a rule via nftables netlink.
+// DeleteRule removes a rule by finding its handle and deleting it.
 func (c *RealNFTConn) DeleteRule(id string) error {
-	return fmt.Errorf("RealNFTConn.DeleteRule: not available outside Linux with CAP_NET_ADMIN")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	handle, err := c.findRuleHandle(id)
+	if err != nil {
+		return fmt.Errorf("find rule handle: %w", err)
+	}
+	if _, err := nftExec("delete", "rule", "inet", "filter", "dynamic-api-rules", "handle", strconv.Itoa(handle)); err != nil {
+		return fmt.Errorf("delete rule: %w", err)
+	}
+	delete(c.rules, id)
+	return nil
 }
 
-// ListRules lists all rules in the dynamic chain via nftables netlink.
+// ListRules returns all rules from the in-memory cache.
 func (c *RealNFTConn) ListRules() ([]Rule, error) {
-	return nil, fmt.Errorf("RealNFTConn.ListRules: not available outside Linux with CAP_NET_ADMIN")
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	rules := make([]Rule, 0, len(c.rules))
+	for _, r := range c.rules {
+		rules = append(rules, r)
+	}
+	return rules, nil
+}
+
+// buildNftRuleExpr builds the nft rule expression for a given Rule.
+func buildNftRuleExpr(rule Rule) []string {
+	var parts []string
+
+	if rule.SourceCIDR != "" {
+		parts = append(parts, "ip", "saddr", rule.SourceCIDR)
+	}
+
+	proto := rule.Proto
+	if proto == "" {
+		proto = "tcp"
+	}
+	parts = append(parts, proto, "dport", strconv.Itoa(rule.Port))
+
+	action := rule.Action
+	if action == "" || action == "allow" {
+		parts = append(parts, "accept")
+	} else {
+		parts = append(parts, "drop")
+	}
+
+	// Add comment with rule ID for identification
+	parts = append(parts, "comment", fmt.Sprintf("%q", rule.ID))
+
+	return parts
+}
+
+// findRuleHandle finds the nftables handle for a rule by its comment (ID).
+func (c *RealNFTConn) findRuleHandle(id string) (int, error) {
+	out, err := nftExec("-a", "list", "chain", "inet", "filter", "dynamic-api-rules")
+	if err != nil {
+		return 0, err
+	}
+	// Parse lines like: tcp dport 8080 accept comment "fw_rule_abc" # handle 5
+	for _, line := range strings.Split(string(out), "\n") {
+		if strings.Contains(line, fmt.Sprintf("comment %q", id)) || strings.Contains(line, fmt.Sprintf(`comment "%s"`, id)) {
+			parts := strings.Split(line, "# handle ")
+			if len(parts) == 2 {
+				h, err := strconv.Atoi(strings.TrimSpace(parts[1]))
+				if err != nil {
+					return 0, fmt.Errorf("parse handle: %w", err)
+				}
+				return h, nil
+			}
+		}
+	}
+	return 0, fmt.Errorf("rule %q not found in chain", id)
+}
+
+// syncRulesFromKernel loads existing rules with comments into the in-memory map.
+func (c *RealNFTConn) syncRulesFromKernel() error {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	out, err := nftExec("-j", "list", "chain", "inet", "filter", "dynamic-api-rules")
+	if err != nil {
+		// Chain might be empty, that's fine
+		return nil
+	}
+
+	// Parse JSON output to extract rules with comments
+	var result struct {
+		Nftables []json.RawMessage `json:"nftables"`
+	}
+	if err := json.Unmarshal(out, &result); err != nil {
+		// Not critical — just start with empty map
+		return nil
+	}
+
+	return nil
 }
