@@ -83,6 +83,7 @@ export const passkey = sqliteTable("passkey", {
   deviceType: text("device_type"),
   backedUp: integer("backed_up", { mode: "boolean" }),
   transports: text("transports"),
+  aaguid: text("aaguid"),
   createdAt: integer("created_at", { mode: "timestamp" }),
 });
 

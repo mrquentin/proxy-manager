@@ -66,6 +66,7 @@ CREATE TABLE IF NOT EXISTS \`passkey\` (
   \`device_type\` text,
   \`backed_up\` integer,
   \`transports\` text,
+  \`aaguid\` text,
   \`created_at\` integer,
   FOREIGN KEY (\`user_id\`) REFERENCES \`user\`(\`id\`) ON DELETE CASCADE
 );
@@ -149,6 +150,13 @@ export function createDatabase(url?: string) {
 
   // Auto-create tables (idempotent — uses IF NOT EXISTS)
   sqlite.exec(MIGRATIONS);
+
+  // Schema migrations for existing databases
+  try {
+    sqlite.exec("ALTER TABLE `passkey` ADD COLUMN `aaguid` text;");
+  } catch {
+    // Column already exists — ignore
+  }
 
   return drizzle(sqlite, { schema });
 }
