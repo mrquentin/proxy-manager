@@ -77,7 +77,7 @@ export function createRouteRoutes({ db, auth, env, vpsClient, auditLog }: RouteR
       }
 
       const result = await vpsClient.listRoutes(vps);
-      return c.json(result);
+      return c.json(result as Record<string, unknown>);
     }
   );
 

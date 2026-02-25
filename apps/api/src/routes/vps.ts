@@ -232,7 +232,7 @@ export function createVpsRoutes({ db, auth, env, auditLog, vpsClient }: VpsRoute
 
     try {
       const status = await vpsClient.getStatus(vps);
-      return c.json(status);
+      return c.json(status as Record<string, unknown>);
     } catch (error) {
       const message = error instanceof Error ? error.message : "Failed to fetch VPS status";
       return c.json({ error: message }, 502);
