@@ -98,8 +98,10 @@ export function createAuth(db: ReturnType<typeof import("@proxy-manager/db").cre
       }),
       organization({
         ac,
+        creatorRole: "admin",
         roles: {
           admin: adminRole,
+          owner: adminRole,
           operator: operatorRole,
           viewer: viewerRole,
         },
