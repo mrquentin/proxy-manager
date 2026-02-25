@@ -84,7 +84,7 @@ describe("Firewall routes", () => {
         { id: "fw-2", port: 443, proto: "tcp", action: "allow" },
       ];
       const { app } = createApp(undefined, {
-        listFirewallRules: () => Promise.resolve(rules),
+        listFirewallRules: () => Promise.resolve({ data: rules }),
       });
       const res = await app.request("/api/vps/vps-1/firewall/rules");
       expect(res.status).toBe(200);

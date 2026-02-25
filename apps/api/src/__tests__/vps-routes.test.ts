@@ -139,7 +139,7 @@ describe("VPS routes", () => {
     it("should return VPS status from the control plane", async () => {
       const statusReport = { tunnels: { total: 2, connected: 1 } };
       const { app, vpsClient } = createApp(undefined, undefined, {
-        getStatus: () => Promise.resolve(statusReport),
+        getStatus: () => Promise.resolve({ data: statusReport }),
       });
       const res = await app.request("/api/vps/vps-1/status");
       expect(res.status).toBe(200);

@@ -68,7 +68,7 @@ describe("Tunnel routes", () => {
     it("should list tunnels from VPS API", async () => {
       const tunnels = [{ id: "tun-1" }, { id: "tun-2" }];
       const { app } = createApp(undefined, {
-        listTunnels: () => Promise.resolve(tunnels),
+        listTunnels: () => Promise.resolve({ data: tunnels }),
       });
       const res = await app.request("/api/vps/vps-1/tunnels");
       expect(res.status).toBe(200);

@@ -89,7 +89,7 @@ describe("Route routes (L4)", () => {
         { id: "route-2", matchType: "sni", matchValue: ["api.example.com"] },
       ];
       const { app } = createApp(undefined, {
-        listRoutes: () => Promise.resolve(routes),
+        listRoutes: () => Promise.resolve({ data: routes }),
       });
       const res = await app.request("/api/vps/vps-1/routes");
       expect(res.status).toBe(200);
