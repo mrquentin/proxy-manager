@@ -73,6 +73,7 @@ export class VpsPoller {
 
     try {
       const instances = await this.db.select().from(vpsInstances);
+      console.log(`[vps-poller] Polling ${instances.length} instance(s)`);
 
       for (const vps of instances) {
         await this.checkInstance(vps);
@@ -107,8 +108,9 @@ export class VpsPoller {
         };
         this.sseManager.broadcastToOrg(vps.organizationId, event);
       }
-    } catch {
+    } catch (error) {
       // VPS did not respond — mark as offline
+      console.error(`[vps-poller] ${vps.name} (${vps.apiUrl}) failed:`, error instanceof Error ? error.message : error);
       await this.db
         .update(vpsInstances)
         .set({ status: "offline" })
