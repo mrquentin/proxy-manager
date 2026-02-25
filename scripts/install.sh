@@ -11,7 +11,7 @@ export DEBIAN_FRONTEND=noninteractive
 
 # ─── Defaults ───────────────────────────────────────────────────────────────────
 GITHUB_REPO="mrquentin/proxy-manager"
-VERSION=""           # empty = latest release
+RELEASE_TAG=""       # empty = latest release
 GO_VERSION="1.23.6"
 SKIP_FIREWALL=false
 BINARY_PATH=""       # local path to pre-uploaded controlplane binary
@@ -19,7 +19,7 @@ BINARY_PATH=""       # local path to pre-uploaded controlplane binary
 # ─── Parse arguments ────────────────────────────────────────────────────────────
 while [[ $# -gt 0 ]]; do
   case "$1" in
-    --version)    VERSION="$2"; shift 2 ;;
+    --version)    RELEASE_TAG="$2"; shift 2 ;;
     --go-version) GO_VERSION="$2"; shift 2 ;;
     --binary)     BINARY_PATH="$2"; shift 2 ;;
     --skip-firewall) SKIP_FIREWALL=true; shift ;;
@@ -240,19 +240,19 @@ if [[ -n "$BINARY_PATH" ]]; then
   # Use pre-uploaded binary
   [[ -f "$BINARY_PATH" ]] || err "Binary not found at ${BINARY_PATH}"
   install -m 755 "$BINARY_PATH" /usr/bin/controlplane
-  VERSION="${VERSION:-local}"
+  RELEASE_TAG="${RELEASE_TAG:-local}"
   log "Installed controlplane from ${BINARY_PATH}"
 else
   # Download from GitHub Releases
-  if [[ -z "$VERSION" ]]; then
-    VERSION=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | jq -r '.tag_name')
-    if [[ -z "$VERSION" || "$VERSION" == "null" ]]; then
+  if [[ -z "$RELEASE_TAG" ]]; then
+    RELEASE_TAG=$(curl -fsSL "https://api.github.com/repos/${GITHUB_REPO}/releases/latest" | jq -r '.tag_name')
+    if [[ -z "$RELEASE_TAG" || "$RELEASE_TAG" == "null" ]]; then
       err "Could not determine latest release. Use --binary to provide the binary directly, or --version to specify a tag."
     fi
   fi
-  log "Using version: ${VERSION}"
+  log "Using version: ${RELEASE_TAG}"
 
-  DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/controlplane-${ARCH}"
+  DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/controlplane-${ARCH}"
   log "Downloading controlplane from ${DOWNLOAD_URL}..."
   curl -fsSL -o /tmp/controlplane "$DOWNLOAD_URL" \
     || err "Failed to download control plane binary. For private repos, use --binary instead."
@@ -338,7 +338,7 @@ echo "============================================="
 echo "  Proxy Manager VPS — Installation Complete  "
 echo "============================================="
 echo ""
-echo "  Version:           ${VERSION}"
+echo "  Version:           ${RELEASE_TAG}"
 echo "  Architecture:      ${ARCH}"
 echo "  WireGuard iface:   wg0 (10.0.0.1/24)"
 echo "  NAT interface:     ${DEFAULT_IFACE}"
