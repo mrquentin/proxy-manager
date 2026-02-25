@@ -102,6 +102,15 @@ sysctl --system > /dev/null 2>&1
 # ─── 3. Firewall ────────────────────────────────────────────────────────────────
 if [[ "$SKIP_FIREWALL" == "false" ]]; then
   log "Configuring UFW firewall..."
+
+  # Remove cloud-init iptables REJECT rules that block traffic before UFW
+  # (common on OCI/Oracle Cloud Ubuntu images)
+  while iptables -L INPUT --line-numbers -n 2>/dev/null | grep -q "REJECT.*icmp-host-prohibited"; do
+    RULE_NUM=$(iptables -L INPUT --line-numbers -n | grep "REJECT.*icmp-host-prohibited" | head -1 | awk '{print $1}')
+    log "Removing cloud-init iptables REJECT rule #${RULE_NUM}"
+    iptables -D INPUT "$RULE_NUM"
+  done
+
   ufw default deny incoming
   ufw default allow outgoing
   ufw allow 22/tcp        # SSH
@@ -110,6 +119,11 @@ if [[ "$SKIP_FIREWALL" == "false" ]]; then
   ufw allow 51820/udp     # WireGuard
   ufw allow 7443/tcp      # Control plane API
   ufw --force enable
+
+  # Persist iptables rules so the fix survives reboots
+  if command -v netfilter-persistent &> /dev/null; then
+    netfilter-persistent save
+  fi
 else
   warn "Skipping firewall configuration (--skip-firewall)"
 fi
