@@ -8,14 +8,12 @@ services:
     volumes:
       - .:/app
       - api_node_modules:/app/node_modules
+    env_file:
+      - .env
     environment:
       - PORT=3000
       - CORS_ORIGIN=http://localhost:5173
       - DATABASE_PATH=./data/local.db
-      - JWT_SECRET=dev-only-change-me-in-production-32chars
-      - ENCRYPTION_KEY=0000000000000000000000000000000000000000000000000000000000000000
-      - PASSKEY_RP_ID=localhost
-      - PASSKEY_ORIGIN=http://localhost:5173
       - NODE_ENV=development
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:3000/api/health"]
