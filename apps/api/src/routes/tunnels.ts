@@ -77,7 +77,7 @@ export function createTunnelRoutes({ db, auth, env, vpsClient, auditLog }: Tunne
       }
 
       const result = await vpsClient.listTunnels(vps);
-      return c.json({ data: result });
+      return c.json(result);
     }
   );
 

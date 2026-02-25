@@ -76,7 +76,7 @@ export function createFirewallRoutes({ db, auth, env, vpsClient, auditLog }: Fir
       }
 
       const result = await vpsClient.listFirewallRules(vps);
-      return c.json({ data: result });
+      return c.json(result);
     }
   );
 
