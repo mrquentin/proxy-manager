@@ -252,7 +252,7 @@ else
   fi
   log "Using version: ${RELEASE_TAG}"
 
-  DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/controlplane-${ARCH}"
+  DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${RELEASE_TAG}/controlplane-linux-${ARCH}"
   log "Downloading controlplane from ${DOWNLOAD_URL}..."
   curl -fsSL -o /tmp/controlplane "$DOWNLOAD_URL" \
     || err "Failed to download control plane binary. For private repos, use --binary instead."
