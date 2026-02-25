@@ -64,8 +64,8 @@ export function createAuth(db: ReturnType<typeof import("@proxy-manager/db").cre
   return betterAuth({
     database: drizzleAdapter(db, { provider: "sqlite" }),
     secret: env.JWT_SECRET,
-    baseURL: `http://localhost:${env.PORT}`,
-    trustedOrigins: [env.CORS_ORIGIN],
+    baseURL: env.PASSKEY_ORIGIN,
+    trustedOrigins: [env.PASSKEY_ORIGIN, env.CORS_ORIGIN],
 
     emailAndPassword: {
       enabled: true,
