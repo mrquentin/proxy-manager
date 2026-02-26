@@ -285,7 +285,12 @@ install -d -m 750 -o controlplane -g controlplane /var/lib/controlplane
 
 # Environment config
 install -d -m 755 /etc/controlplane
-cat > /etc/controlplane/config.env << 'EOF'
+PUBLIC_IP=$(curl -s --max-time 5 ifconfig.me || curl -s --max-time 5 icanhazip.com || echo "")
+if [ -z "$PUBLIC_IP" ]; then
+  log "WARNING: Could not detect public IP. Set SERVER_ENDPOINT manually in /etc/controlplane/config.env"
+fi
+
+cat > /etc/controlplane/config.env << ENVEOF
 # Control Plane Configuration
 LISTEN_ADDR=0.0.0.0:7443
 CADDY_ADMIN_SOCKET=/run/caddy/admin.sock
@@ -295,10 +300,11 @@ LOG_LEVEL=info
 WG_INTERFACE=wg0
 WG_SUBNET=10.0.0.0/24
 WG_SERVER_IP=10.0.0.1
+SERVER_ENDPOINT=${PUBLIC_IP}:51820
 TLS_CERT=/etc/controlplane/tls/server.crt
 TLS_KEY=/etc/controlplane/tls/server.key
 TLS_CLIENT_CA=/etc/controlplane/tls/client-ca.crt
-EOF
+ENVEOF
 
 # TLS directory (certs must be placed here before starting)
 install -d -m 750 -o controlplane -g controlplane /etc/controlplane/tls
