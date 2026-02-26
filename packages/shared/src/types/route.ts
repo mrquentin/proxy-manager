@@ -3,7 +3,10 @@
  * Currently only SNI matching is used, but the type system supports future expansion
  * (e.g., protocol-based matching for SSH, RDP, etc.).
  */
-export type L4MatchType = "sni";
+export type L4MatchType = "sni" | "port_forward";
+
+/** Protocol for L4 routes. */
+export type L4Protocol = "tcp" | "udp";
 
 /**
  * An L4 forwarding route managed by the VPS Caddy L4 proxy.
@@ -17,10 +20,13 @@ export interface L4Route {
   /** The tunnel (WireGuard peer) this route forwards traffic to. */
   tunnelId: string;
 
-  /** The port Caddy listens on for this route (typically 443). */
+  /** The port Caddy listens on for this route (443 for SNI, custom for port_forward). */
   listenPort: number;
 
-  /** The type of match (e.g., "sni" for TLS SNI matching). */
+  /** Protocol: "tcp" or "udp". */
+  protocol: L4Protocol;
+
+  /** The type of match: "sni" for domain-based, "port_forward" for raw port forwarding. */
   matchType: L4MatchType;
 
   /**

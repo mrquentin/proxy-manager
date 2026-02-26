@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
 	"sync"
 	"time"
 
@@ -172,35 +173,47 @@ func (r *Reconciler) reconcileCaddy(ctx context.Context) (int, error) {
 		return 0, fmt.Errorf("get caddy config: %w", err)
 	}
 
-	// Build maps of actual route IDs in Caddy
-	actualRouteIDs := make(map[string]caddy.CaddyRoute)
-	for _, server := range actualConfig.Servers {
-		for _, route := range server.Routes {
-			if route.ID != "" {
-				actualRouteIDs[route.ID] = route
-			}
-		}
-	}
-
-	// Build maps of desired route Caddy IDs
-	desiredRouteMap := make(map[string]*store.Route)
+	// Separate desired routes by type
+	var sniRoutes []*store.Route
+	var pfRoutes []*store.Route
 	for _, route := range desiredRoutes {
-		desiredRouteMap[route.CaddyID] = route
+		if route.MatchType == "port_forward" {
+			pfRoutes = append(pfRoutes, route)
+		} else {
+			sniRoutes = append(sniRoutes, route)
+		}
 	}
 
 	var ops int
 
-	// Ensure the server exists if there are desired routes
-	if len(desiredRoutes) > 0 && len(actualConfig.Servers) == 0 {
-		if err := r.caddyClient.CreateServer(ctx); err != nil {
-			return 0, fmt.Errorf("create caddy server: %w", err)
+	// --- Reconcile SNI routes (shared "proxy" server) ---
+	actualSNIRouteIDs := make(map[string]caddy.CaddyRoute)
+	if proxyServer, ok := actualConfig.Servers["proxy"]; ok {
+		for _, route := range proxyServer.Routes {
+			if route.ID != "" {
+				actualSNIRouteIDs[route.ID] = route
+			}
 		}
-		ops++
 	}
 
-	// Add missing routes
-	for caddyID, desired := range desiredRouteMap {
-		if _, exists := actualRouteIDs[caddyID]; !exists {
+	desiredSNIMap := make(map[string]*store.Route)
+	for _, route := range sniRoutes {
+		desiredSNIMap[route.CaddyID] = route
+	}
+
+	// Ensure the proxy server exists if there are SNI routes
+	if len(sniRoutes) > 0 {
+		if _, exists := actualConfig.Servers["proxy"]; !exists {
+			if err := r.caddyClient.CreateServer(ctx); err != nil {
+				return 0, fmt.Errorf("create caddy server: %w", err)
+			}
+			ops++
+		}
+	}
+
+	// Add missing SNI routes
+	for caddyID, desired := range desiredSNIMap {
+		if _, exists := actualSNIRouteIDs[caddyID]; !exists {
 			route := caddy.BuildCaddyRoute(caddyID, desired.MatchValue, desired.Upstream)
 			if err := r.caddyClient.AddRoute(ctx, route); err != nil {
 				r.logger.Error("failed to add caddy route", "caddy_id", caddyID, "error", err)
@@ -210,11 +223,49 @@ func (r *Reconciler) reconcileCaddy(ctx context.Context) (int, error) {
 		}
 	}
 
-	// Remove extra routes
-	for caddyID := range actualRouteIDs {
-		if _, exists := desiredRouteMap[caddyID]; !exists {
+	// Remove extra SNI routes
+	for caddyID := range actualSNIRouteIDs {
+		if _, exists := desiredSNIMap[caddyID]; !exists {
 			if err := r.caddyClient.DeleteRoute(ctx, caddyID); err != nil {
 				r.logger.Error("failed to delete caddy route", "caddy_id", caddyID, "error", err)
+				continue
+			}
+			ops++
+		}
+	}
+
+	// --- Reconcile port-forward servers (pf-* servers) ---
+	desiredPFServers := make(map[string]*store.Route)
+	for _, route := range pfRoutes {
+		serverName := caddy.PortForwardServerName(route.ListenPort, route.Protocol)
+		desiredPFServers[serverName] = route
+	}
+
+	// Find actual pf-* servers
+	actualPFServers := make(map[string]bool)
+	for name := range actualConfig.Servers {
+		if strings.HasPrefix(name, "pf-") {
+			actualPFServers[name] = true
+		}
+	}
+
+	// Add missing port-forward servers
+	for serverName, desired := range desiredPFServers {
+		if !actualPFServers[serverName] {
+			listenAddr := caddy.FormatListenAddr(desired.ListenPort, desired.Protocol)
+			if err := r.caddyClient.CreatePortForwardServer(ctx, serverName, listenAddr, desired.Upstream, desired.CaddyID); err != nil {
+				r.logger.Error("failed to create port-forward server", "server", serverName, "error", err)
+				continue
+			}
+			ops++
+		}
+	}
+
+	// Remove extra port-forward servers
+	for serverName := range actualPFServers {
+		if _, exists := desiredPFServers[serverName]; !exists {
+			if err := r.caddyClient.DeleteServer(ctx, serverName); err != nil {
+				r.logger.Error("failed to delete port-forward server", "server", serverName, "error", err)
 				continue
 			}
 			ops++

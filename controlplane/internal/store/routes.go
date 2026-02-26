@@ -12,7 +12,8 @@ type Route struct {
 	ID         string
 	TunnelID   string
 	ListenPort int
-	MatchType  string
+	Protocol   string // "tcp" or "udp"
+	MatchType  string // "sni" or "port_forward"
 	MatchValue []string
 	Upstream   string
 	CaddyID    string
@@ -38,12 +39,16 @@ func (s *RouteStore) Create(r *Route) error {
 		return fmt.Errorf("marshal match_value: %w", err)
 	}
 
+	if r.Protocol == "" {
+		r.Protocol = "tcp"
+	}
+
 	now := time.Now().Unix()
 	_, err = s.db.Exec(`INSERT INTO l4_routes (
-		id, tunnel_id, listen_port, match_type, match_value,
+		id, tunnel_id, listen_port, protocol, match_type, match_value,
 		upstream, caddy_id, enabled, created_at, updated_at
-	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
-		r.ID, r.TunnelID, r.ListenPort, r.MatchType,
+	) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+		r.ID, r.TunnelID, r.ListenPort, r.Protocol, r.MatchType,
 		string(matchJSON), r.Upstream, r.CaddyID,
 		boolToInt(r.Enabled), now, now,
 	)
@@ -58,7 +63,7 @@ func (s *RouteStore) Create(r *Route) error {
 // Get retrieves a route by ID.
 func (s *RouteStore) Get(id string) (*Route, error) {
 	row := s.db.QueryRow(`SELECT
-		id, tunnel_id, listen_port, match_type, match_value,
+		id, tunnel_id, listen_port, protocol, match_type, match_value,
 		upstream, caddy_id, enabled, created_at, updated_at
 	FROM l4_routes WHERE id = ?`, id)
 	return scanRoute(row)
@@ -67,7 +72,7 @@ func (s *RouteStore) Get(id string) (*Route, error) {
 // List returns all routes.
 func (s *RouteStore) List() ([]*Route, error) {
 	rows, err := s.db.Query(`SELECT
-		id, tunnel_id, listen_port, match_type, match_value,
+		id, tunnel_id, listen_port, protocol, match_type, match_value,
 		upstream, caddy_id, enabled, created_at, updated_at
 	FROM l4_routes ORDER BY created_at ASC`)
 	if err != nil {
@@ -89,7 +94,7 @@ func (s *RouteStore) List() ([]*Route, error) {
 // ListEnabled returns only enabled routes.
 func (s *RouteStore) ListEnabled() ([]*Route, error) {
 	rows, err := s.db.Query(`SELECT
-		id, tunnel_id, listen_port, match_type, match_value,
+		id, tunnel_id, listen_port, protocol, match_type, match_value,
 		upstream, caddy_id, enabled, created_at, updated_at
 	FROM l4_routes WHERE enabled = 1 ORDER BY created_at ASC`)
 	if err != nil {
@@ -111,7 +116,7 @@ func (s *RouteStore) ListEnabled() ([]*Route, error) {
 // ListByTunnelID returns all routes for a given tunnel.
 func (s *RouteStore) ListByTunnelID(tunnelID string) ([]*Route, error) {
 	rows, err := s.db.Query(`SELECT
-		id, tunnel_id, listen_port, match_type, match_value,
+		id, tunnel_id, listen_port, protocol, match_type, match_value,
 		upstream, caddy_id, enabled, created_at, updated_at
 	FROM l4_routes WHERE tunnel_id = ? ORDER BY created_at ASC`, tunnelID)
 	if err != nil {
@@ -143,6 +148,22 @@ func (s *RouteStore) Delete(id string) error {
 	return nil
 }
 
+// FindByPortAndProtocol checks if a route already uses a given listen_port + protocol.
+func (s *RouteStore) FindByPortAndProtocol(port int, protocol string) (*Route, error) {
+	row := s.db.QueryRow(`SELECT
+		id, tunnel_id, listen_port, protocol, match_type, match_value,
+		upstream, caddy_id, enabled, created_at, updated_at
+	FROM l4_routes WHERE listen_port = ? AND protocol = ? AND enabled = 1 LIMIT 1`, port, protocol)
+	r, err := scanRoute(row)
+	if err != nil {
+		if err.Error() == "route not found" {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return r, nil
+}
+
 // DeleteByTunnelID removes all routes for a given tunnel.
 func (s *RouteStore) DeleteByTunnelID(tunnelID string) error {
 	_, err := s.db.Exec(`DELETE FROM l4_routes WHERE tunnel_id = ?`, tunnelID)
@@ -158,7 +179,7 @@ func scanRoute(row *sql.Row) (*Route, error) {
 	)
 
 	err := row.Scan(
-		&r.ID, &r.TunnelID, &r.ListenPort, &r.MatchType, &matchJSON,
+		&r.ID, &r.TunnelID, &r.ListenPort, &r.Protocol, &r.MatchType, &matchJSON,
 		&r.Upstream, &r.CaddyID, &enabled, &createdAt, &updatedAt,
 	)
 	if err != nil {
@@ -181,7 +202,7 @@ func scanRouteRows(rows *sql.Rows) (*Route, error) {
 	)
 
 	err := rows.Scan(
-		&r.ID, &r.TunnelID, &r.ListenPort, &r.MatchType, &matchJSON,
+		&r.ID, &r.TunnelID, &r.ListenPort, &r.Protocol, &r.MatchType, &matchJSON,
 		&r.Upstream, &r.CaddyID, &enabled, &createdAt, &updatedAt,
 	)
 	if err != nil {

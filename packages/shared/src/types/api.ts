@@ -1,6 +1,6 @@
 import type { VpsInstance, VpsStatus, VpsStatusReport } from "./vps";
 import type { Tunnel, TunnelConfig, RotationPolicy } from "./tunnel";
-import type { L4Route, L4MatchType } from "./route";
+import type { L4Route, L4MatchType, L4Protocol } from "./route";
 import type {
   FirewallRule,
   FirewallProtocol,
@@ -238,14 +238,20 @@ export interface CreateRouteRequest {
   /** The tunnel (WireGuard peer) to forward traffic to. */
   tunnelId: string;
 
-  /** Match type (currently only "sni"). */
+  /** Match type: "sni" for domain-based, "port_forward" for raw port forwarding. */
   matchType: L4MatchType;
 
-  /** Match values (e.g., domain names for SNI matching). */
+  /** Match values (e.g., domain names for SNI matching). Ignored for port_forward. */
   matchValue: string[];
 
   /** Upstream port on the peer (e.g., 443, 8080). */
   upstreamPort: number;
+
+  /** Protocol for port_forward routes: "tcp" or "udp". Defaults to "tcp". */
+  protocol?: L4Protocol;
+
+  /** Listen port for port_forward routes. Required when matchType is "port_forward". */
+  listenPort?: number;
 }
 
 /** Response after creating an L4 route. */

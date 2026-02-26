@@ -45,8 +45,8 @@ export function RouteList({ vpsId }: RouteListProps) {
         <TableRow>
           <TableHead>ID</TableHead>
           <TableHead>Tunnel ID</TableHead>
-          <TableHead>Match Type</TableHead>
-          <TableHead>Domains</TableHead>
+          <TableHead>Type</TableHead>
+          <TableHead>Match / Port</TableHead>
           <TableHead>Upstream</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="w-[60px]">Actions</TableHead>
@@ -60,16 +60,27 @@ export function RouteList({ vpsId }: RouteListProps) {
               {route.tunnelId}
             </TableCell>
             <TableCell>
-              <Badge variant="outline">{route.matchType.toUpperCase()}</Badge>
+              <Badge variant="outline">{route.matchType === "port_forward" ? "PORT FWD" : "SNI"}</Badge>
             </TableCell>
             <TableCell>
-              <div className="flex flex-wrap gap-1">
-                {route.matchValue.map((v) => (
-                  <Badge key={v} variant="secondary" className="text-xs">
-                    {v}
+              {route.matchType === "port_forward" ? (
+                <div className="flex items-center gap-1">
+                  <Badge variant="secondary" className="text-xs font-mono">
+                    :{route.listenPort}
                   </Badge>
-                ))}
-              </div>
+                  <Badge variant="outline" className="text-xs">
+                    {route.protocol.toUpperCase()}
+                  </Badge>
+                </div>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {route.matchValue.map((v) => (
+                    <Badge key={v} variant="secondary" className="text-xs">
+                      {v}
+                    </Badge>
+                  ))}
+                </div>
+              )}
             </TableCell>
             <TableCell className="font-mono text-xs">
               {route.upstream}

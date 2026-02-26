@@ -57,6 +57,8 @@ type Client interface {
 	AddRoute(ctx context.Context, route CaddyRoute) error
 	DeleteRoute(ctx context.Context, caddyID string) error
 	CreateServer(ctx context.Context) error
+	CreatePortForwardServer(ctx context.Context, serverName, listenAddr, upstream, caddyID string) error
+	DeleteServer(ctx context.Context, serverName string) error
 }
 
 // HTTPClient implements Client using HTTP calls to Caddy's admin Unix socket.
@@ -213,6 +215,94 @@ func (c *HTTPClient) DeleteRoute(ctx context.Context, caddyID string) error {
 	}
 
 	return nil
+}
+
+// CreatePortForwardServer creates a dedicated L4 server for port forwarding.
+func (c *HTTPClient) CreatePortForwardServer(ctx context.Context, serverName, listenAddr, upstream, caddyID string) error {
+	server := map[string]interface{}{
+		"listen": []string{listenAddr},
+		"routes": []map[string]interface{}{
+			{
+				"@id": caddyID,
+				"handle": []map[string]interface{}{
+					{
+						"handler": "proxy",
+						"upstreams": []map[string]interface{}{
+							{"dial": []string{upstream}},
+						},
+					},
+				},
+			},
+		},
+	}
+
+	body, err := json.Marshal(server)
+	if err != nil {
+		return fmt.Errorf("marshal server config: %w", err)
+	}
+
+	req, err := http.NewRequestWithContext(ctx, http.MethodPut,
+		c.baseURL+"/config/apps/layer4/servers/"+serverName, bytes.NewReader(body))
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+	req.Header.Set("Content-Type", "application/json")
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("create port-forward server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("caddy returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// DeleteServer removes an entire L4 server from Caddy.
+func (c *HTTPClient) DeleteServer(ctx context.Context, serverName string) error {
+	req, err := http.NewRequestWithContext(ctx, http.MethodDelete,
+		c.baseURL+"/config/apps/layer4/servers/"+serverName, nil)
+	if err != nil {
+		return fmt.Errorf("create request: %w", err)
+	}
+
+	resp, err := c.httpClient.Do(req)
+	if err != nil {
+		return fmt.Errorf("delete server: %w", err)
+	}
+	defer resp.Body.Close()
+
+	respBody, _ := io.ReadAll(resp.Body)
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("caddy returned status %d: %s", resp.StatusCode, string(respBody))
+	}
+
+	return nil
+}
+
+// PortForwardServerName returns the Caddy server name for a port-forward route.
+func PortForwardServerName(port int, protocol string) string {
+	return fmt.Sprintf("pf-%s-%d", protocol, port)
+}
+
+// FormatListenAddr returns the Caddy listen address for a given port and protocol.
+func FormatListenAddr(port int, protocol string) string {
+	if protocol == "udp" {
+		return fmt.Sprintf("udp/0.0.0.0:%d", port)
+	}
+	return fmt.Sprintf("0.0.0.0:%d", port)
+}
+
+// FormatUpstream returns the Caddy upstream dial address.
+func FormatUpstream(vpnIP string, port int, protocol string) string {
+	if protocol == "udp" {
+		return fmt.Sprintf("udp/%s:%d", vpnIP, port)
+	}
+	return fmt.Sprintf("%s:%d", vpnIP, port)
 }
 
 // BuildCaddyRoute constructs a CaddyRoute from route parameters.

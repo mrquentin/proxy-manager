@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"fmt"
 	"log/slog"
+	"strings"
 
 	_ "modernc.org/sqlite"
 )
@@ -105,6 +106,8 @@ func (db *DB) migrate() error {
 			CHECK (id = 1)
 		)`,
 		`INSERT OR IGNORE INTO reconciliation_state (id, interval_seconds, last_status, drift_corrections) VALUES (1, 30, 'pending', 0)`,
+		// Migration: add protocol column for port-forward routes
+		`ALTER TABLE l4_routes ADD COLUMN protocol TEXT NOT NULL DEFAULT 'tcp' CHECK (protocol IN ('tcp', 'udp'))`,
 		`CREATE TABLE IF NOT EXISTS audit_log (
 			id          INTEGER PRIMARY KEY AUTOINCREMENT,
 			timestamp   INTEGER NOT NULL,
@@ -120,6 +123,10 @@ func (db *DB) migrate() error {
 
 	for i, m := range migrations {
 		if _, err := db.conn.Exec(m); err != nil {
+			// ALTER TABLE fails if column already exists — skip gracefully
+			if strings.Contains(m, "ALTER TABLE") && strings.Contains(err.Error(), "duplicate column") {
+				continue
+			}
 			return fmt.Errorf("migration %d: %w", i, err)
 		}
 	}

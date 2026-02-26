@@ -192,7 +192,7 @@ export function VpsDetail() {
             <div>
               <h2 className="text-lg font-semibold">L4 Routes</h2>
               <p className="text-sm text-muted-foreground">
-                SNI-based forwarding rules
+                L4 forwarding rules (SNI + port forward)
               </p>
             </div>
             <CreateRouteDialog vpsId={vps.id} />

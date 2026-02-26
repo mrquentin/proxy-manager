@@ -50,6 +50,14 @@ func (m *mockCaddyClient) CreateServer(ctx context.Context) error {
 	return nil
 }
 
+func (m *mockCaddyClient) CreatePortForwardServer(ctx context.Context, serverName, listenAddr, upstream, caddyID string) error {
+	return nil
+}
+
+func (m *mockCaddyClient) DeleteServer(ctx context.Context, serverName string) error {
+	return nil
+}
+
 type mockWGClient struct {
 	peers     map[string]wireguard.PeerInfo
 	publicKey string
